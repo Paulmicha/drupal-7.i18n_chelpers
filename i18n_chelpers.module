@@ -1,0 +1,113 @@
+<?php
+
+/**
+ * @file
+ * Drupal 7 i18n custom helpers
+ */
+
+/**
+ * Input : nid or node obj (any language)
+ * Output : nid or node obj (current language translation, if exists)
+ */
+function language_aware_nid($nid_or_node, $langcode = null)
+{
+  global $language;
+  
+  if (is_numeric($nid_or_node)) {
+    $node = node_load($nid_or_node);
+  }
+  else {
+    $node = $nid_or_node;
+  }
+  
+  //  Failsafe
+  if (empty($node) || !is_object($node)) {
+    return false;
+  }
+  
+  //  Overridable langcode
+  if (empty($langcode)) {
+    $langcode = $language->language;
+  }
+  
+  if ($node->tnid)
+  {
+    //  @performance @todo on peut s'épargner un appel à translation_node_get_translations()
+    //  lorsque le node passé en param est déjà dans la langue courante
+    $translations = translation_node_get_translations($node->tnid);
+    
+    if (!empty($translations[$langcode]->nid))
+    {
+      if (is_numeric($nid_or_node)) {
+        return $translations[$langcode]->nid;
+      }
+      else {
+        return node_load($translations[$langcode]->nid);
+      }
+    }
+  }
+  
+  return $nid_or_node;
+}
+
+
+/**
+ * Support multi-langue pour liens
+ *
+ * @example  dsm(language_aware_node_link(4));
+ *
+ * @param   int|Object $node: le nid ou l'objet node
+ * @param   Array    $options (cf. defaults ci-dessous)
+ *   $options['type'] = 'l'    => (default) renvoie : <a href="(le lien vers le node)">Titre du node</a>
+ *   $options['type'] = 'url'   => renvoie : le lien vers le node
+ *   $options['options']      => array utilisé tel quel dans l() ou url()
+ */
+function language_aware_node_link($node, $options = array())
+{
+  $return = "";
+  global $language;
+  
+  if (is_numeric($node))
+  {
+    //  @performance @todo manually select title + tnid + language
+    $node = node_load($node);
+  }
+  
+  //  Failsafe
+  if (empty($node) || !is_object($node)) {
+    return $return;
+  }
+  
+  //  Overridable defaults
+  $options += array(
+    'nid' => $node->nid,
+    'type' => 'l',
+    'title' => $node->title,
+    'langcode' => $language->language,
+    'options' => array(),
+  );
+  
+  if ($node->tnid)
+  {
+    //  @performance on peut s'épargner un appel à translation_node_get_translations()
+    //  lorsque le node passé en param est déjà dans la langue courante
+    $translations = translation_node_get_translations($node->tnid);
+    
+    if (!empty($translations[$options['langcode']]->nid))
+    {
+      $options['title'] = $translations[$options['langcode']]->title;
+      $options['nid'] = $translations[$options['langcode']]->nid;
+    }
+  }
+  
+  if ($options['type'] == 'l') {
+    $return = l(@$options['prefix'] . $options['title'], 'node/'. $options['nid'], $options['options']);
+  }
+  
+  else if ($options['type'] == 'url') {
+    $return = url('node/'. $options['nid'], $options['options']);
+  }
+  
+  return $return;
+}
+
